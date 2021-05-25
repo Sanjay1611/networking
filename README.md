@@ -6,10 +6,10 @@ of a particular node in a distributed system and later we can fetch it from any 
 
 ## Modes
 It operates in either of 2 modes
-* Write mode
+* Write Mode -
 In this mode we take a word from the user i.e. User enters a word of his choice in the cli, later we generate cid of that word and store in the badgerDB along
 with the word as a (key, value) pair i.e. (cid, word).
-* Read Mode
+* Read Mode -
 It can be seen as an enquiry counter the user will come up with any valid cid and will get the corresponding word if it exists in the database of any node in the network.
 
 ## Flags allowed
