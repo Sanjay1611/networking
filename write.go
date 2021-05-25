@@ -13,6 +13,7 @@ import (
 )
 
 func writeMode(buf *bufio.Reader, routingDiscovery *discovery.RoutingDiscovery, host host.Host) {
+	go makeRPCserver(host)
 	for {
 		fmt.Println("enter name")
 		name, err := buf.ReadString('\n')
@@ -40,8 +41,6 @@ func writeMode(buf *bufio.Reader, routingDiscovery *discovery.RoutingDiscovery, 
 		}
 
 		discovery.Advertise(context.Background(), routingDiscovery, c.String())
-
-		go makeRPCserver(host)
 		fmt.Printf("Successfully announced cid %s!\n", c.String())
 	}
 }
