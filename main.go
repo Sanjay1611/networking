@@ -3,16 +3,21 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"flag"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	badger "github.com/dgraph-io/badger/v3"
 	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	discovery "github.com/libp2p/go-libp2p-discovery"
@@ -22,7 +27,8 @@ import (
 
 var protocolID string = "badgerDNS/1.0"
 var db *badger.DB
-var startTime time.Time
+
+// var startTime time.Time
 
 type multiAddressList []maddr.Multiaddr
 
@@ -43,11 +49,82 @@ func (ml *multiAddressList) Set(value string) error {
 	return nil
 }
 
-func newHost(port int) host.Host {
-	host, err := libp2p.New(context.Background(), libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", port)))
-	if err != nil {
-		log.Fatalln(err)
+func newHost(port int, cidflag *bool) host.Host {
+	var host host.Host
+	privateKey, err := ioutil.ReadFile(PRIVATE_KEY_PATH)
+	if err == nil {
+		nonce := privateKey[:12]
+		privateKey = privateKey[12:]
+
+		var password string
+		fmt.Printf("Please enter the password to open the file\n")
+		fmt.Scanf("%s", &password)
+
+		block, err := aes.NewCipher([]byte(password))
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		aesgcm, err := cipher.NewGCM(block)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		fmt.Println("len of PRIVATE KEY ", aesgcm.Overhead())
+		privateKeyHost, err := aesgcm.Open(nil, nonce, privateKey, nil)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		hostKey, err := crypto.UnmarshalPrivateKey([]byte(privateKeyHost))
+		if err != nil {
+			log.Println("Cannot unmarshal private key")
+		} else {
+			host, err = libp2p.New(context.Background(), libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", port)), libp2p.Identity(hostKey))
+			if err != nil {
+				log.Fatalln(err)
+			}
+		}
+	} else {
+		host, err = libp2p.New(context.Background(), libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", port)))
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		privKey := host.Peerstore().PrivKey(host.ID())
+		sk, err := crypto.MarshalPrivateKey(privKey)
+		if err != nil {
+			log.Println(err)
+		}
+
+		var password string
+		fmt.Printf("Please enter a password to encrypt the file\n")
+		fmt.Scanf("%s", &password)
+
+		block, err := aes.NewCipher([]byte(password))
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		nonce := make([]byte, 12)
+		if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+			panic(err)
+		}
+
+		aesgcm, err := cipher.NewGCM(block)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		fmt.Println("Overhead is", aesgcm.Overhead())
+		encryptedText := aesgcm.Seal(nonce, nonce, sk, nil)
+
+		err = ioutil.WriteFile(PRIVATE_KEY_PATH, encryptedText, 0600)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
+
 	fmt.Println("We are hosted at", host.ID())
 	return host
 }
@@ -91,22 +168,22 @@ func main() {
 	var bootstrapPeers multiAddressList = dht.DefaultBootstrapPeers
 	flag.Var(&bootstrapPeers, "peers", "")
 	flag.Parse()
-	host := newHost(*port)
+
 	var err error
-
-	hostDHT, routingDiscovery := bootstrap(host, bootstrapPeers)
-
 	db, err = badger.Open(badger.DefaultOptions(*dir))
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 
+	host := newHost(*port, cidflag)
+	hostDHT, routingDiscovery := bootstrap(host, bootstrapPeers)
+
 	buf := bufio.NewReader(os.Stdin)
 
 	if *cidflag == false {
 		writeMode(buf, routingDiscovery, host)
 	} else {
-		readMode(buf, routingDiscovery, host, hostDHT)
+		readMode(buf, routingDiscovery, hostDHT)
 	}
 }

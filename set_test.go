@@ -26,7 +26,7 @@ func BenchmarkSet(b *testing.B) {
 	}
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		setCIDwithName(db, c.String(), name)
+		setValue(db, c.String(), name)
 	}
 	b.StopTimer()
 }

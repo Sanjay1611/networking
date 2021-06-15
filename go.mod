@@ -3,7 +3,6 @@ module github.com/sanjay/assignment/aicumen
 go 1.14
 
 require (
-	github.com/dgraph-io/badger v1.6.1
 	github.com/dgraph-io/badger/v3 v3.2011.1
 	github.com/ipfs/go-cid v0.0.7
 	github.com/libp2p/go-libp2p v0.14.0

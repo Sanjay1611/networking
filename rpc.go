@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -24,7 +23,7 @@ type PingService struct{}
 func (t *PingService) Ping(ctx context.Context, argType PingArgs, replyType *PingReply) error {
 	fmt.Println("Received a Ping call")
 
-	name, err := getNameFromCID(db, argType.CID)
+	name, err := getValue(db, argType.CID)
 	if err != nil {
 		return err
 	}
@@ -49,6 +48,6 @@ func callRPC(client host.Host, peerID peer.ID, cidstring string) (string, error)
 	}
 
 	fmt.Println("Name for cid", cidstring, "is", resp.Name)
-	fmt.Println("Time to fetch the name is", time.Since(startTime))
+	// fmt.Println("Time to fetch the name is", time.Since(startTime))
 	return resp.Name, nil
 }
